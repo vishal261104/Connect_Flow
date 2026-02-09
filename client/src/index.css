@@ -16,6 +16,7 @@
 
 *{ box-sizing: border-box; }
 html,body{ height:100%; }
+html{ scrollbar-gutter: stable; }
 body{
   margin:0;
   font-family: Roboto, system-ui, -apple-system, "Segoe UI", Arial, "Apple Color Emoji", "Segoe UI Emoji";
@@ -26,6 +27,7 @@ body{
     radial-gradient(900px 600px at 85% 25%, rgba(0, 210, 255, .18), transparent 55%),
     radial-gradient(1000px 700px at 65% 90%, rgba(255, 110, 110, .10), transparent 60%),
     var(--bg);
+  background-attachment: fixed, fixed, fixed, fixed;
   color: var(--text);
 }
 
@@ -104,6 +106,10 @@ a:hover{ text-decoration: underline; }
   border: 1px solid var(--border);
   background: rgba(255,255,255,.07);
   color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border-radius: 12px;
   padding: 9px 12px;
   font-size: 14px;

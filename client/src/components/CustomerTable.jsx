@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 
+import { FiEdit2, FiExternalLink, FiPlus } from "react-icons/fi";
+
 const formatDate = (value) => {
 	if (!value) return "—";
 	const date = new Date(value);
@@ -21,7 +23,7 @@ export default function CustomerTable({ customers }) {
 						<div className="subtle">Create your first customer to get started.</div>
 					</div>
 					<Link className="btn btnPrimary" to="/customers/new">
-						Add customer
+						<FiPlus aria-hidden="true" /> Add customer
 					</Link>
 				</div>
 			</div>
@@ -45,13 +47,13 @@ export default function CustomerTable({ customers }) {
 						</tr>
 					</thead>
 					<tbody>
-						{customers.map((c) => (
+						{customers.map((c, idx) => (
 							<tr className="tr" key={c.id}>
 								<td className="td">
 									<div style={{ fontWeight: 750 }}>
 										<Link to={`/customers/${c.id}`}>{c.name}</Link>
 									</div>
-									<div className="small mono">#{c.id}</div>
+									<div className="small mono" title={`ID: ${c.id}`}>#{idx + 1}</div>
 								</td>
 								<td className="td">{c.company || "—"}</td>
 								<td className="td">{c.phone || "—"}</td>
@@ -60,10 +62,10 @@ export default function CustomerTable({ customers }) {
 								<td className="td">
 									<div className="rowWrap">
 										<Link className="btn btnPrimary" to={`/customers/${c.id}`}>
-											Open
+											<FiExternalLink aria-hidden="true" /> Open
 										</Link>
 										<Link className="btn" to={`/customers/${c.id}/edit`}>
-											Edit
+											<FiEdit2 aria-hidden="true" /> Edit
 										</Link>
 									</div>
 								</td>

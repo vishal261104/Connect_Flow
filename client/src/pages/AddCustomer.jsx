@@ -2,38 +2,33 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { customersApi } from "../services/api.js";
 
+import { FiPlus, FiX } from "react-icons/fi";
+
 export default function AddCustomer() {
 	const navigate = useNavigate();
 	const [form, setForm] = useState({ name: "", phone: "", email: "", company: "" });
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState("");
-	const [sentTo, setSentTo] = useState("");
-	const [verifyUrl, setVerifyUrl] = useState("");
 
 	const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
 	const submit = async (e) => {
 		e.preventDefault();
 		setError("");
-		setSentTo("");
-		setVerifyUrl("");
 
 		const emailTrimmed = form.email.trim();
-		if (!emailTrimmed) {
-			setError("Email is required for verification");
-			return;
-		}
-
-		const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed);
-		if (!emailOk) {
-			setError("Please enter a valid email address");
-			return;
+		if (emailTrimmed) {
+			const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed);
+			if (!emailOk) {
+				setError("Please enter a valid email address");
+				return;
+			}
 		}
 
 		const payload = {
 			name: form.name.trim(),
 			phone: form.phone.trim() || null,
-			email: emailTrimmed,
+			email: emailTrimmed || null,
 			company: form.company.trim() || null,
 		};
 
@@ -44,9 +39,8 @@ export default function AddCustomer() {
 
 		setSaving(true);
 		try {
-			const response = await customersApi.create(payload);
-			setSentTo(emailTrimmed);
-			setVerifyUrl(response?.verifyUrl ?? "");
+			const created = await customersApi.create(payload);
+			navigate(`/customers/${created.id}`);
 		} catch (err) {
 			setError(err?.message ?? "Failed to create customer");
 		} finally {
@@ -64,31 +58,6 @@ export default function AddCustomer() {
 			</div>
 
 			{error ? <div className="alert">{error}</div> : null}
-			{sentTo ? (
-				<div className="card cardPad">
-					<div style={{ fontWeight: 800 }}>Verification email sent</div>
-					<div className="subtle" style={{ marginTop: 6 }}>
-						We sent a verification link to <span className="mono">{sentTo}</span>. The customer will be added after you click the link.
-					</div>
-					{verifyUrl ? (
-						<div className="card" style={{ borderRadius: 12, marginTop: 12 }}>
-							<div className="cardPad" style={{ padding: 12 }}>
-								<div className="small">SMTP isn’t configured on the server, so no email was sent. Use this link to verify:</div>
-								<div className="mono" style={{ marginTop: 8, wordBreak: "break-all" }}>
-									<a href={verifyUrl} target="_blank" rel="noreferrer">
-										{verifyUrl}
-									</a>
-								</div>
-							</div>
-						</div>
-					) : null}
-					<div className="rowWrap" style={{ justifyContent: "flex-end", marginTop: 12 }}>
-						<button className="btn btnPrimary" type="button" onClick={() => navigate("/customers")}>
-							Back to customers
-						</button>
-					</div>
-				</div>
-			) : null}
 
 			<div className="card cardPad">
 				<form className="stack" onSubmit={submit}>
@@ -116,10 +85,10 @@ export default function AddCustomer() {
 
 					<div className="rowWrap" style={{ justifyContent: "flex-end" }}>
 						<button className="btn" type="button" onClick={() => navigate("/customers")} disabled={saving}>
-							Cancel
+							<FiX aria-hidden="true" /> Cancel
 						</button>
 						<button className="btn btnPrimary" type="submit" disabled={saving}>
-							{saving ? "Sending…" : "Send verification"}
+							<FiPlus aria-hidden="true" /> {saving ? "Creating…" : "Create customer"}
 						</button>
 					</div>
 				</form>

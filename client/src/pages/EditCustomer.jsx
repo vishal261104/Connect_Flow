@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { customersApi } from "../services/api.js";
 
+import { FiArrowLeft, FiSave, FiTrash2 } from "react-icons/fi";
+
 export default function EditCustomer() {
 	const { id } = useParams();
 	const customerId = Number(id);
@@ -140,14 +142,14 @@ export default function EditCustomer() {
 
 						<div className="rowWrap" style={{ justifyContent: "space-between" }}>
 							<button className="btn btnDanger" type="button" onClick={remove} disabled={deleting || saving}>
-								{deleting ? "Deleting…" : "Delete"}
+								<FiTrash2 aria-hidden="true" /> {deleting ? "Deleting…" : "Delete"}
 							</button>
 							<div className="rowWrap">
 								<button className="btn" type="button" onClick={() => navigate(`/customers/${customerId}`)} disabled={saving}>
-									Back
+									<FiArrowLeft aria-hidden="true" /> Back
 								</button>
 								<button className="btn btnPrimary" type="submit" disabled={saving}>
-									{saving ? "Saving…" : "Save changes"}
+									<FiSave aria-hidden="true" /> {saving ? "Saving…" : "Save changes"}
 								</button>
 							</div>
 						</div>

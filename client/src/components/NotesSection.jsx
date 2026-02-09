@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { notesApi } from "../services/api.js";
 
+import { FiEdit2, FiPlus, FiSave, FiX } from "react-icons/fi";
+
 const formatDateTime = (value) => {
 	if (!value) return "";
 	const date = new Date(value);
@@ -125,7 +127,7 @@ export default function NotesSection({ customerId }) {
 					</div>
 					<div className="rowWrap" style={{ justifyContent: "flex-end" }}>
 						<button className="btn btnPrimary" disabled={saving || !body.trim()} type="submit">
-							{saving ? "Adding…" : "Add note"}
+							<FiPlus aria-hidden="true" /> {saving ? "Adding…" : "Add note"}
 						</button>
 					</div>
 				</form>
@@ -136,11 +138,11 @@ export default function NotesSection({ customerId }) {
 					) : notes.length === 0 ? (
 						<div className="small">No notes yet.</div>
 					) : (
-						notes.map((n) => (
+						notes.map((n, idx) => (
 							<div key={n.id} className="card" style={{ borderRadius: 12 }}>
 								<div className="cardPad" style={{ padding: 12 }}>
 									<div className="rowWrap" style={{ justifyContent: "space-between" }}>
-										<div className="small mono">#{n.id}</div>
+										<div className="small mono" title={`ID: ${n.id}`}>#{idx + 1}</div>
 										<div className="rowWrap" style={{ gap: 8 }}>
 											<div className="small">{formatDateTime(n.created_at)}</div>
 											<button
@@ -149,7 +151,7 @@ export default function NotesSection({ customerId }) {
 												disabled={saving || editSaving}
 												onClick={() => startEdit(n)}
 											>
-												Edit
+												<FiEdit2 aria-hidden="true" /> Edit
 											</button>
 										</div>
 									</div>
@@ -165,7 +167,7 @@ export default function NotesSection({ customerId }) {
 											/>
 											<div className="rowWrap" style={{ justifyContent: "flex-end" }}>
 												<button className="btn" type="button" onClick={cancelEdit} disabled={editSaving}>
-													Cancel
+													<FiX aria-hidden="true" /> Cancel
 												</button>
 												<button
 													className="btn btnPrimary"
@@ -173,7 +175,7 @@ export default function NotesSection({ customerId }) {
 													disabled={editSaving || !editBody.trim()}
 													onClick={() => saveEdit(n.id)}
 												>
-													{editSaving ? "Saving…" : "Save"}
+													<FiSave aria-hidden="true" /> {editSaving ? "Saving…" : "Save"}
 												</button>
 											</div>
 										</div>
