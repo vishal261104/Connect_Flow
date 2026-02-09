@@ -1,26 +1,29 @@
 import { query } from "../config/db.js";
 
-export const addNote = async ({ customerId, body }) => {
+export const addNote = async ({ ownerUserId, customerId, body }) => {
 	const result = await query(
 		`
 			INSERT INTO notes (customer_id, body)
-			VALUES ($1, $2)
+			SELECT c.id, $3
+			FROM customers c
+			WHERE c.owner_user_id = $1 AND c.id = $2
 			RETURNING id, customer_id, body, created_at;
 		`,
-		[customerId, body]
+		[ownerUserId, customerId, body]
 	);
 	return result.rows[0];
 };
 
-export const listNotesByCustomer = async (customerId) => {
+export const listNotesByCustomer = async (ownerUserId, customerId) => {
 	const result = await query(
 		`
-			SELECT id, customer_id, body, created_at
-			FROM notes
-			WHERE customer_id = $1
+			SELECT n.id, n.customer_id, n.body, n.created_at
+			FROM notes n
+			JOIN customers c ON c.id = n.customer_id
+			WHERE c.owner_user_id = $1 AND n.customer_id = $2
 			ORDER BY created_at DESC, id DESC;
 		`,
-		[customerId]
+		[ownerUserId, customerId]
 	);
 	return result.rows;
 };
@@ -37,27 +40,35 @@ export const deleteNote = async (noteId) => {
 	return (result.rowCount ?? 0) > 0;
 };
 
-export const deleteNoteForCustomer = async ({ noteId, customerId }) => {
+export const deleteNoteForCustomer = async ({ ownerUserId, noteId, customerId }) => {
 	const result = await query(
 		`
-			DELETE FROM notes
-			WHERE id = $1 AND customer_id = $2
+			DELETE FROM notes n
+			USING customers c
+			WHERE n.customer_id = c.id
+			  AND c.owner_user_id = $1
+			  AND n.id = $2
+			  AND n.customer_id = $3
 			RETURNING id;
 		`,
-		[noteId, customerId]
+		[ownerUserId, noteId, customerId]
 	);
 	return (result.rowCount ?? 0) > 0;
 };
 
-export const updateNote = async ({ noteId, customerId, body }) => {
+export const updateNote = async ({ ownerUserId, noteId, customerId, body }) => {
 	const result = await query(
 		`
-			UPDATE notes
+			UPDATE notes n
 			SET body = $1
-			WHERE id = $2 AND customer_id = $3
-			RETURNING id, customer_id, body, created_at;
+			FROM customers c
+			WHERE n.customer_id = c.id
+			  AND c.owner_user_id = $2
+			  AND n.id = $3
+			  AND n.customer_id = $4
+			RETURNING n.id, n.customer_id, n.body, n.created_at;
 		`,
-		[body, noteId, customerId]
+		[body, ownerUserId, noteId, customerId]
 	);
 	return result.rows[0] ?? null;
 };

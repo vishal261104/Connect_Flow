@@ -7,23 +7,26 @@ export const createCustomerEmailVerification = async ({ email, payload, ttlMinut
 	const token = crypto.randomBytes(32).toString("hex");
 	const tokenHash = sha256Hex(token);
 
-	// Keep one active pending verification per email (best-effort cleanup).
+	const ownerUserId = payload?.owner_user_id ?? null;
+
+	// Keep one active pending verification per email + user (best-effort cleanup).
 	await query(
 		`
 			DELETE FROM customer_email_verifications
 			WHERE LOWER(email) = LOWER($1)
+			  AND (user_id = $2 OR ($2 IS NULL AND user_id IS NULL))
 			  AND used_at IS NULL;
 		`,
-		[email]
+		[email, ownerUserId]
 	);
 
 	const result = await query(
 		`
-			INSERT INTO customer_email_verifications (email, token_hash, payload, expires_at)
-			VALUES ($1, $2, $3, NOW() + ($4 || ' minutes')::interval)
-			RETURNING id, email, expires_at;
+			INSERT INTO customer_email_verifications (email, token_hash, payload, expires_at, user_id)
+			VALUES ($1, $2, $3, NOW() + ($4 || ' minutes')::interval, $5)
+			RETURNING id, email, expires_at, user_id;
 		`,
-		[email, tokenHash, payload, String(ttlMinutes)]
+		[email, tokenHash, payload, String(ttlMinutes), ownerUserId]
 	);
 
 	return { token, verification: result.rows[0] };
@@ -40,7 +43,7 @@ export const consumeCustomerEmailVerification = async ({ token }) => {
 			WHERE token_hash = $1
 			  AND used_at IS NULL
 			  AND expires_at > NOW()
-			RETURNING id, email, payload;
+			RETURNING id, email, payload, user_id;
 		`,
 		[tokenHash]
 	);

@@ -9,13 +9,14 @@ const parseId = (value) => {
 
 export const listNotesHandler = async (req, res, next) => {
 	try {
+		const ownerUserId = Number(req.user?.id);
 		const customerId = parseId(req.params.customerId);
 		if (!customerId) return res.status(400).json({ message: "Invalid customer id" });
 
-		const customer = await getCustomerById(customerId);
+		const customer = await getCustomerById(ownerUserId, customerId);
 		if (!customer) return res.status(404).json({ message: "Customer not found" });
 
-		const notes = await listNotesByCustomer(customerId);
+		const notes = await listNotesByCustomer(ownerUserId, customerId);
 		return res.json(notes);
 	} catch (err) {
 		return next(err);
@@ -24,6 +25,7 @@ export const listNotesHandler = async (req, res, next) => {
 
 export const addNoteHandler = async (req, res, next) => {
 	try {
+		const ownerUserId = Number(req.user?.id);
 		const customerId = parseId(req.params.customerId);
 		if (!customerId) return res.status(400).json({ message: "Invalid customer id" });
 
@@ -32,10 +34,10 @@ export const addNoteHandler = async (req, res, next) => {
 			return res.status(400).json({ message: "Note body is required" });
 		}
 
-		const customer = await getCustomerById(customerId);
+		const customer = await getCustomerById(ownerUserId, customerId);
 		if (!customer) return res.status(404).json({ message: "Customer not found" });
 
-		const note = await addNote({ customerId, body: body.trim() });
+		const note = await addNote({ ownerUserId, customerId, body: body.trim() });
 		return res.status(201).json(note);
 	} catch (err) {
 		return next(err);
@@ -44,6 +46,7 @@ export const addNoteHandler = async (req, res, next) => {
 
 export const updateNoteHandler = async (req, res, next) => {
 	try {
+		const ownerUserId = Number(req.user?.id);
 		const customerId = parseId(req.params.customerId);
 		if (!customerId) return res.status(400).json({ message: "Invalid customer id" });
 
@@ -55,10 +58,10 @@ export const updateNoteHandler = async (req, res, next) => {
 			return res.status(400).json({ message: "Note body is required" });
 		}
 
-		const customer = await getCustomerById(customerId);
+		const customer = await getCustomerById(ownerUserId, customerId);
 		if (!customer) return res.status(404).json({ message: "Customer not found" });
 
-		const updated = await updateNote({ noteId, customerId, body: body.trim() });
+		const updated = await updateNote({ ownerUserId, noteId, customerId, body: body.trim() });
 		if (!updated) return res.status(404).json({ message: "Note not found" });
 		return res.json(updated);
 	} catch (err) {
@@ -68,16 +71,17 @@ export const updateNoteHandler = async (req, res, next) => {
 
 export const deleteNoteHandler = async (req, res, next) => {
 	try {
+		const ownerUserId = Number(req.user?.id);
 		const customerId = parseId(req.params.customerId);
 		if (!customerId) return res.status(400).json({ message: "Invalid customer id" });
 
 		const noteId = parseId(req.params.noteId);
 		if (!noteId) return res.status(400).json({ message: "Invalid note id" });
 
-		const customer = await getCustomerById(customerId);
+		const customer = await getCustomerById(ownerUserId, customerId);
 		if (!customer) return res.status(404).json({ message: "Customer not found" });
 
-		const deleted = await deleteNoteForCustomer({ noteId, customerId });
+		const deleted = await deleteNoteForCustomer({ ownerUserId, noteId, customerId });
 		if (!deleted) return res.status(404).json({ message: "Note not found" });
 		return res.status(204).send();
 	} catch (err) {

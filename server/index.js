@@ -6,6 +6,11 @@ import { connectDB, ensureSchema } from "./config/db.js";
 import { logger } from "./utils/logger.js";
 import customersRouter from "./routes/customers.js";
 import notesRouter from "./routes/notes.js";
+import authRouter from "./routes/auth.js";
+import leadsRouter from "./routes/leads.js";
+import dashboardRouter from "./routes/dashboard.js";
+import tasksRouter from "./routes/tasks.js";
+import { requireAuth } from "./middleware/auth.js";
 
 const app = express();
 
@@ -14,8 +19,12 @@ app.use(express.json());
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 
+app.use("/api/auth", authRouter);
 app.use("/api/customers", customersRouter);
-app.use("/api/customers/:customerId/notes", notesRouter);
+app.use("/api/customers/:customerId/notes", requireAuth, notesRouter);
+app.use("/api/customers/:customerId/tasks", requireAuth, tasksRouter);
+app.use("/api/leads", requireAuth, leadsRouter);
+app.use("/api/dashboard", requireAuth, dashboardRouter);
 
 // Basic error handler
 app.use((err, req, res, next) => {
