@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { customersApi, leadsApi } from "../services/api.js";
+import { customersApi, leadsApi, usersApi } from "../services/api.js";
 import NotesSection from "../components/NotesSection.jsx";
 import TasksSection from "../components/TasksSection.jsx";
+import ActivityTimeline from "../components/ActivityTimeline.jsx";
 
 import { FiArrowLeft, FiEdit2, FiList, FiSave, FiTrendingUp } from "react-icons/fi";
+
+import { Alert } from "../components/ui/alert.jsx";
+import { Badge } from "../components/ui/badge.jsx";
+import { Button } from "../components/ui/button.jsx";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card.jsx";
+import { Input } from "../components/ui/input.jsx";
+import { useAuth } from "../auth/AuthContext.jsx";
 
 const formatDate = (value) => {
 	if (!value) return "—";
@@ -21,12 +29,22 @@ export default function CustomerProfile() {
 	const { id } = useParams();
 	const customerId = Number(id);
 	const navigate = useNavigate();
+	const { user } = useAuth();
+	const role = String(user?.role ?? "");
 
 	const [customer, setCustomer] = useState(null);
+	const [users, setUsers] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [leadSaving, setLeadSaving] = useState(false);
 	const [dealValue, setDealValue] = useState("");
+
+	const assignedLabel = useMemo(() => {
+		const id = customer?.assigned_user_id;
+		if (id == null) return "Unassigned";
+		const match = (users ?? []).find((u) => Number(u.id) === Number(id));
+		return match?.email ? `${match.email} (${match.role ?? "Viewer"})` : `User #${id}`;
+	}, [customer?.assigned_user_id, users]);
 
 	const headerSubtitle = useMemo(() => {
 		if (!customer) return "";
@@ -40,9 +58,13 @@ export default function CustomerProfile() {
 			setLoading(true);
 			setError("");
 			try {
-				const data = await customersApi.get(customerId);
+				const [data, usersList] = await Promise.all([
+					customersApi.get(customerId),
+					usersApi.list().catch(() => []),
+				]);
 				if (!cancelled) {
 					setCustomer(data);
+					setUsers(Array.isArray(usersList) ? usersList : []);
 					setDealValue(data?.deal_value != null ? String(data.deal_value) : "");
 				}
 			} catch (err) {
@@ -124,80 +146,96 @@ export default function CustomerProfile() {
 					<p className="subtle">{headerSubtitle}</p>
 				</div>
 				<div className="rowWrap">
-					<Link className="btn" to="/customers">
-						<FiList aria-hidden="true" /> All customers
-					</Link>
-					<Link className="btn" to={`/customers/${customerId}/edit`}>
-						<FiEdit2 aria-hidden="true" /> Edit
-					</Link>
+					<Button asChild variant="outline">
+						<Link to="/customers">
+							<FiList aria-hidden="true" /> All customers
+						</Link>
+					</Button>
+					{role !== "Viewer" ? (
+						<Button asChild variant="outline">
+							<Link to={`/customers/${customerId}/edit`}>
+								<FiEdit2 aria-hidden="true" /> Edit
+							</Link>
+						</Button>
+					) : null}
 				</div>
 			</div>
 
 			{error ? (
-				<div className="alert">
+				<Alert>
 					<div style={{ fontWeight: 800 }}>Couldn’t load customer</div>
 					<div className="small" style={{ marginTop: 6 }}>
 						{error}
 					</div>
 					<div className="rowWrap" style={{ marginTop: 10 }}>
-						<button className="btn" onClick={() => navigate("/customers")}>
+						<Button variant="outline" onClick={() => navigate("/customers")}>
 							<FiArrowLeft aria-hidden="true" /> Back
-						</button>
+						</Button>
 					</div>
-				</div>
+				</Alert>
 			) : null}
 
 			{loading ? (
-				<div className="card cardPad">Loading profile…</div>
+				<Card>
+					<CardContent className="pt-5">Loading profile…</CardContent>
+				</Card>
 			) : customer ? (
-				<div className="grid2">
-					<section className="card">
-						<div className="kv">
-							<div className="kvKey">Customer ID</div>
-							<div className="kvVal mono">#{customer.id}</div>
-							<div className="kvKey">Company</div>
-							<div className="kvVal">{customer.company || "—"}</div>
-							<div className="kvKey">Phone</div>
-							<div className="kvVal">{customer.phone || "—"}</div>
-							<div className="kvKey">Email</div>
-							<div className="kvVal">{customer.email || "—"}</div>
-							<div className="kvKey">Created</div>
-							<div className="kvVal">{formatDate(customer.created_at)}</div>
-							<div className="kvKey">Updated</div>
-							<div className="kvVal">{formatDate(customer.updated_at)}</div>
-						</div>
-					</section>
-
-					<section className="stack" style={{ gap: 14 }}>
-						<section className="card">
-							<div className="cardPad" style={{ borderBottom: "1px solid var(--border)" }}>
-								<div style={{ fontWeight: 900 }}>Lead</div>
-								<div className="small subtle" style={{ marginTop: 4 }}>Track sales stage for this customer.</div>
+				<div className="grid grid-cols-1 gap-3 min-[800px]:grid-cols-[1.2fr_.8fr]">
+					<Card>
+						<CardHeader>
+							<CardTitle>Details</CardTitle>
+							<CardDescription>Customer record overview</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-sm">
+								<div className="text-muted-foreground">Customer ID</div>
+								<div className="mono">#{customer.id}</div>
+								<div className="text-muted-foreground">Company</div>
+								<div>{customer.company || "—"}</div>
+								<div className="text-muted-foreground">Phone</div>
+								<div>{customer.phone || "—"}</div>
+								<div className="text-muted-foreground">Email</div>
+								<div>{customer.email || "—"}</div>
+								<div className="text-muted-foreground">Assigned to</div>
+								<div>{assignedLabel}</div>
+								<div className="text-muted-foreground">Created</div>
+								<div>{formatDate(customer.created_at)}</div>
+								<div className="text-muted-foreground">Updated</div>
+								<div>{formatDate(customer.updated_at)}</div>
 							</div>
-							<div className="cardPad">
+						</CardContent>
+					</Card>
+
+					<div className="stack" style={{ gap: 14 }}>
+						<Card>
+							<CardHeader>
+								<CardTitle>Lead</CardTitle>
+								<CardDescription>Track sales stage for this customer.</CardDescription>
+							</CardHeader>
+							<CardContent>
 								{customer.is_lead ? (
 									<div className="stack" style={{ gap: 12 }}>
 										<div className="rowWrap" style={{ justifyContent: "space-between" }}>
 											<div style={{ minWidth: 220 }}>
 												<div className="label">Stage</div>
-												<select className="input" value={customer.lead_stage || "New"} onChange={(e) => updateLeadStage(e.target.value)} disabled={leadSaving}>
+												<select className="flex h-10 w-full rounded-md border border-input bg-white/90 px-3 py-2 text-sm shadow-soft ring-offset-background focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60" value={customer.lead_stage || "New"} onChange={(e) => updateLeadStage(e.target.value)} disabled={leadSaving}>
 													<option value="New">New</option>
 													<option value="Contacted">Contacted</option>
 													<option value="Interested">Interested</option>
 													<option value="Closed">Closed</option>
 												</select>
 											</div>
-											<div className="badge">Lead</div>
+											<Badge>Lead</Badge>
 										</div>
 
 										<div className="rowWrap" style={{ justifyContent: "space-between", alignItems: "flex-end" }}>
 											<div style={{ flex: 1, minWidth: 220 }}>
 												<div className="label">Deal value (optional)</div>
-												<input className="input" type="number" min="0" step="0.01" value={dealValue} onChange={(e) => setDealValue(e.target.value)} disabled={leadSaving} placeholder="e.g. 50000" />
+												<Input type="number" min="0" step="0.01" value={dealValue} onChange={(e) => setDealValue(e.target.value)} disabled={leadSaving} placeholder="e.g. 50000" />
 											</div>
-											<button className="btn" type="button" onClick={saveDealValue} disabled={leadSaving}>
+											<Button variant="outline" type="button" onClick={saveDealValue} disabled={leadSaving}>
 												<FiSave aria-hidden="true" /> {leadSaving ? "Saving…" : "Save"}
-											</button>
+											</Button>
 										</div>
 									</div>
 								) : (
@@ -206,17 +244,18 @@ export default function CustomerProfile() {
 											<div style={{ fontWeight: 800 }}>Not a lead yet</div>
 											<div className="small subtle">Convert to start tracking stages.</div>
 										</div>
-										<button className="btn btnPrimary" type="button" onClick={convertToLead} disabled={leadSaving}>
+										<Button variant="default" type="button" onClick={convertToLead} disabled={leadSaving}>
 											<FiTrendingUp aria-hidden="true" /> {leadSaving ? "Working…" : "Convert to lead"}
-										</button>
+										</Button>
 									</div>
 								)}
-							</div>
-						</section>
+							</CardContent>
+						</Card>
 
 						<TasksSection customerId={customerId} />
 						<NotesSection customerId={customerId} />
-					</section>
+						<ActivityTimeline customerId={customerId} />
+					</div>
 				</div>
 			) : null}
 		</div>

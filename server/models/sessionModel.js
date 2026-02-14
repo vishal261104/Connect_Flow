@@ -20,7 +20,7 @@ export const createUserSession = async ({ userId, ttlDays = 30 }) => {
 export const getUserSessionByToken = async ({ tokenHash }) => {
 	const result = await query(
 		`
-			SELECT s.id, s.user_id, u.email, s.expires_at
+			SELECT s.id, s.user_id, u.email, u.workspace_id, u.role, s.expires_at
 			FROM user_sessions s
 			JOIN users u ON u.id = s.user_id
 			WHERE s.token_hash = $1

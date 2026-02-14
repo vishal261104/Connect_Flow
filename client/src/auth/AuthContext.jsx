@@ -35,17 +35,27 @@ export const AuthProvider = ({ children }) => {
 		return {
 			user,
 			loading,
+			refreshMe: async () => {
+				const me = await authApi.me();
+				setUser(me);
+				return me;
+			},
 			login: async ({ email, password }) => {
 				const result = await authApi.login({ email, password });
 				authToken.set(result?.token ?? "");
 				setUser(result?.user ?? null);
 				return result?.user ?? null;
 			},
-			register: async ({ email, password }) => {
-				const result = await authApi.register({ email, password });
+			register: async ({ name, email, password }) => {
+				const result = await authApi.register({ name, email, password });
 				authToken.set(result?.token ?? "");
 				setUser(result?.user ?? null);
 				return result?.user ?? null;
+			},
+			updateProfile: async ({ name }) => {
+				const updated = await authApi.updateMe({ name });
+				setUser(updated);
+				return updated;
 			},
 			logout: async () => {
 				try {

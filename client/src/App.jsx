@@ -9,6 +9,8 @@ import CustomerProfile from "./pages/CustomerProfile.jsx";
 import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Pipeline from "./pages/Pipeline.jsx";
+import Profile from "./pages/Profile.jsx";
+import NotificationsBell from "./components/NotificationsBell.jsx";
 
 import {
   FiColumns,
@@ -16,13 +18,22 @@ import {
   FiLogIn,
   FiLogOut,
   FiPlus,
+  FiUser,
   FiUsers,
 } from "react-icons/fi";
+
+import { Button } from "./components/ui/button.jsx";
+import { Card, CardContent } from "./components/ui/card.jsx";
 
 const RequireAuth = ({ children }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <div className="card cardPad">Loading…</div>;
+  if (loading)
+    return (
+      <Card>
+        <CardContent className="pt-5">Loading…</CardContent>
+      </Card>
+    );
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   return children;
 };
@@ -30,9 +41,11 @@ const RequireAuth = ({ children }) => {
 const Topbar = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const role = String(user?.role ?? "");
   const isOnCustomers = location.pathname === "/customers";
   const isOnDashboard = location.pathname === "/dashboard";
   const isOnPipeline = location.pathname === "/pipeline";
+    const isOnProfile = location.pathname === "/profile";
 
   return (
     <header className="topbar">
@@ -47,33 +60,50 @@ const Topbar = () => {
           />
           <div className="brand">
             <div className="brandTitle">CONNECTFLOW</div>
-            <div className="brandSub">Customers & notes</div>
           </div>
         </div>
 
         <nav className="navLinks">
       {user ? (
         <>
-          <Link className={`btn ${isOnDashboard ? "btnPrimary" : ""}`} to="/dashboard">
-			<FiHome aria-hidden="true" /> Dashboard
-          </Link>
-          <Link className={`btn ${isOnCustomers ? "btnPrimary" : ""}`} to="/customers">
-			<FiUsers aria-hidden="true" /> Customers
-          </Link>
-          <Link className={`btn ${isOnPipeline ? "btnPrimary" : ""}`} to="/pipeline">
-			<FiColumns aria-hidden="true" /> Pipeline
-          </Link>
-          <Link className="btn" to="/customers/new">
-			<FiPlus aria-hidden="true" /> Add customer
-          </Link>
-          <button className="btn" type="button" onClick={logout}>
+          <Button asChild variant={isOnDashboard ? "default" : "outline"}>
+            <Link to="/dashboard">
+			  <FiHome aria-hidden="true" /> Dashboard
+            </Link>
+          </Button>
+          <Button asChild variant={isOnCustomers ? "default" : "outline"}>
+            <Link to="/customers">
+			  <FiUsers aria-hidden="true" /> Customers
+            </Link>
+          </Button>
+          <Button asChild variant={isOnPipeline ? "default" : "outline"}>
+            <Link to="/pipeline">
+			  <FiColumns aria-hidden="true" /> Pipeline
+            </Link>
+          </Button>
+      {role !== "Viewer" ? (
+      <Button asChild variant="outline">
+        <Link to="/customers/new">
+          <FiPlus aria-hidden="true" /> Add customer
+        </Link>
+      </Button>
+      ) : null}
+      <Button asChild variant={isOnProfile ? "default" : "outline"}>
+      <Link to="/profile">
+        <FiUser aria-hidden="true" /> Profile
+      </Link>
+      </Button>
+		  <NotificationsBell />
+          <Button variant="outline" type="button" onClick={logout}>
 			<FiLogOut aria-hidden="true" /> Logout
-          </button>
+          </Button>
         </>
       ) : (
-        <Link className="btn btnPrimary" to="/login">
-			<FiLogIn aria-hidden="true" /> Login
-        </Link>
+        <Button asChild variant="default">
+          <Link to="/login">
+			  <FiLogIn aria-hidden="true" /> Login
+          </Link>
+        </Button>
       )}
         </nav>
       </div>
@@ -94,6 +124,7 @@ export default function App() {
 			<Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
 			<Route path="/pipeline" element={<RequireAuth><Pipeline /></RequireAuth>} />
 			<Route path="/customers" element={<RequireAuth><Customers /></RequireAuth>} />
+      <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
 			<Route path="/customers/new" element={<RequireAuth><AddCustomer /></RequireAuth>} />
 			<Route path="/customers/:id" element={<RequireAuth><CustomerProfile /></RequireAuth>} />
 			<Route path="/customers/:id/edit" element={<RequireAuth><EditCustomer /></RequireAuth>} />

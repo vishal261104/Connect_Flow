@@ -1,4 +1,5 @@
 import "dotenv/config";
+import http from "node:http";
 import express from "express";
 import cors from "cors";
 
@@ -10,7 +11,11 @@ import authRouter from "./routes/auth.js";
 import leadsRouter from "./routes/leads.js";
 import dashboardRouter from "./routes/dashboard.js";
 import tasksRouter from "./routes/tasks.js";
+import activitiesRouter from "./routes/activities.js";
+import notificationsRouter from "./routes/notifications.js";
+import usersRouter from "./routes/users.js";
 import { requireAuth } from "./middleware/auth.js";
+import { attachSocketIO } from "./realtime/socket.js";
 
 const app = express();
 
@@ -23,8 +28,11 @@ app.use("/api/auth", authRouter);
 app.use("/api/customers", customersRouter);
 app.use("/api/customers/:customerId/notes", requireAuth, notesRouter);
 app.use("/api/customers/:customerId/tasks", requireAuth, tasksRouter);
+app.use("/api/customers/:customerId/activities", requireAuth, activitiesRouter);
 app.use("/api/leads", requireAuth, leadsRouter);
 app.use("/api/dashboard", requireAuth, dashboardRouter);
+app.use("/api/notifications", requireAuth, notificationsRouter);
+app.use("/api/users", requireAuth, usersRouter);
 
 // Basic error handler
 app.use((err, req, res, next) => {
@@ -46,7 +54,10 @@ const start = async () => {
 	await connectDB();
 	await ensureSchema();
 
-	app.listen(port, host, () => {
+	const server = http.createServer(app);
+	attachSocketIO(server, { corsOrigin: "*" });
+
+	server.listen(port, host, () => {
 		logger.info(`Server listening`, { host, port });
 	});
 };

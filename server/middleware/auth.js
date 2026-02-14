@@ -19,7 +19,12 @@ export const requireAuth = async (req, res, next) => {
 		const session = await getUserSessionByToken({ tokenHash: sha256Hex(token) });
 		if (!session) return res.status(401).json({ message: "Unauthorized" });
 
-		req.user = { id: Number(session.user_id), email: session.email };
+		req.user = {
+			id: Number(session.user_id),
+			email: session.email,
+			workspaceId: Number(session.workspace_id),
+			role: String(session.role ?? "").trim() || "Viewer",
+		};
 		return next();
 	} catch (err) {
 		return next(err);

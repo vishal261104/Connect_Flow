@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { customersApi } from "../services/api.js";
+import { customersApi, usersApi } from "../services/api.js";
 
 import { FiArrowLeft, FiSave, FiTrash2 } from "react-icons/fi";
+
+import { Alert } from "../components/ui/alert.jsx";
+import { Badge } from "../components/ui/badge.jsx";
+import { Button } from "../components/ui/button.jsx";
+import { Card, CardContent } from "../components/ui/card.jsx";
+import { Input } from "../components/ui/input.jsx";
 
 export default function EditCustomer() {
 	const { id } = useParams();
@@ -10,6 +16,8 @@ export default function EditCustomer() {
 	const navigate = useNavigate();
 
 	const [form, setForm] = useState({ name: "", phone: "", email: "", company: "" });
+	const [users, setUsers] = useState([]);
+	const [assignedUserId, setAssignedUserId] = useState("");
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [deleting, setDeleting] = useState(false);
@@ -23,14 +31,19 @@ export default function EditCustomer() {
 			setLoading(true);
 			setError("");
 			try {
-				const customer = await customersApi.get(customerId);
+				const [customer, usersList] = await Promise.all([
+					customersApi.get(customerId),
+					usersApi.list().catch(() => []),
+				]);
 				if (cancelled) return;
+				setUsers(Array.isArray(usersList) ? usersList : []);
 				setForm({
 					name: customer?.name ?? "",
 					phone: customer?.phone ?? "",
 					email: customer?.email ?? "",
 					company: customer?.company ?? "",
 				});
+				setAssignedUserId(customer?.assigned_user_id != null ? String(customer.assigned_user_id) : "");
 			} catch (err) {
 				if (!cancelled) setError(err?.message ?? "Failed to load customer");
 			} finally {
@@ -66,6 +79,7 @@ export default function EditCustomer() {
 			phone: form.phone.trim() || null,
 			email: emailTrimmed || null,
 			company: form.company.trim() || null,
+			assigned_user_id: assignedUserId ? Number(assignedUserId) : null,
 		};
 
 		if (!payload.name) {
@@ -108,53 +122,77 @@ export default function EditCustomer() {
 					<h1 className="h1">Edit customer</h1>
 					<p className="subtle">Update details and keep your records tidy.</p>
 				</div>
-				<div className="badge mono">#{customerId || "—"}</div>
+				<Badge className="mono">#{customerId || "—"}</Badge>
 			</div>
 
-			{error ? <div className="alert">{error}</div> : null}
+			{error ? <Alert>{error}</Alert> : null}
 
 			{loading ? (
-				<div className="card cardPad">Loading…</div>
+				<Card>
+					<CardContent className="pt-5">Loading…</CardContent>
+				</Card>
 			) : (
-				<div className="card cardPad">
+				<Card>
+					<CardContent className="pt-5">
 					<form className="stack" onSubmit={submit}>
 						<div className="grid2">
 							<div>
 								<div className="label">Name *</div>
-								<input className="input" value={form.name} onChange={set("name")} />
+									<Input value={form.name} onChange={set("name")} />
 							</div>
 							<div>
 								<div className="label">Company</div>
-								<input className="input" value={form.company} onChange={set("company")} />
+									<Input value={form.company} onChange={set("company")} />
 							</div>
 						</div>
 
 						<div className="grid2">
 							<div>
 								<div className="label">Phone</div>
-								<input className="input" value={form.phone} onChange={set("phone")} />
+									<Input value={form.phone} onChange={set("phone")} />
 							</div>
 							<div>
 								<div className="label">Email</div>
-								<input className="input" value={form.email} onChange={set("email")} />
+									<Input value={form.email} onChange={set("email")} />
+							</div>
+						</div>
+
+						<div>
+							<div className="label">Assigned to</div>
+							<select
+								className="flex h-10 w-full rounded-md border border-input bg-white/90 px-3 py-2 text-sm shadow-soft ring-offset-background focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+								value={assignedUserId}
+								onChange={(e) => setAssignedUserId(e.target.value)}
+								disabled={saving}
+							>
+								<option value="">Unassigned</option>
+								{users.map((u) => (
+									<option key={u.id} value={String(u.id)}>
+										{u.email} ({u.role})
+									</option>
+								))}
+							</select>
+							<div className="small" style={{ marginTop: 6 }}>
+								Optional
 							</div>
 						</div>
 
 						<div className="rowWrap" style={{ justifyContent: "space-between" }}>
-							<button className="btn btnDanger" type="button" onClick={remove} disabled={deleting || saving}>
+								<Button variant="destructive" type="button" onClick={remove} disabled={deleting || saving}>
 								<FiTrash2 aria-hidden="true" /> {deleting ? "Deleting…" : "Delete"}
-							</button>
+								</Button>
 							<div className="rowWrap">
-								<button className="btn" type="button" onClick={() => navigate(`/customers/${customerId}`)} disabled={saving}>
+									<Button variant="outline" type="button" onClick={() => navigate(`/customers/${customerId}`)} disabled={saving}>
 									<FiArrowLeft aria-hidden="true" /> Back
-								</button>
-								<button className="btn btnPrimary" type="submit" disabled={saving}>
+									</Button>
+									<Button variant="default" type="submit" disabled={saving}>
 									<FiSave aria-hidden="true" /> {saving ? "Saving…" : "Save changes"}
-								</button>
+									</Button>
 							</div>
 						</div>
 					</form>
-				</div>
+					</CardContent>
+				</Card>
 			)}
 		</div>
 	);

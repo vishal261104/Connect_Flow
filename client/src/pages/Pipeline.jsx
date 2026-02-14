@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { leadsApi } from "../services/api.js";
 
+import { Alert } from "../components/ui/alert.jsx";
+import { Badge } from "../components/ui/badge.jsx";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card.jsx";
+
 const STAGES = ["New", "Contacted", "Interested", "Closed"];
 
 const formatDeal = (value) => {
@@ -15,6 +19,8 @@ export default function Pipeline() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [savingId, setSavingId] = useState(0);
+
+	const stageWindowHeight = 420; // keeps ~5 cards visible without increasing page height
 
 	const load = async () => {
 		setLoading(true);
@@ -72,62 +78,67 @@ export default function Pipeline() {
 					<p className="subtle">New → Contacted → Interested → Closed</p>
 				</div>
 				<div className="rowWrap">
-					<div className="badge">{leads.length} leads</div>
+					<Badge>{leads.length} leads</Badge>
 				</div>
 			</div>
 
-			{error ? <div className="alert">{error}</div> : null}
+			{error ? <Alert>{error}</Alert> : null}
 			{loading ? (
-				<div className="card cardPad">Loading leads…</div>
+				<Card>
+					<CardContent className="pt-5">Loading leads…</CardContent>
+				</Card>
 			) : (
 				<div className="rowWrap" style={{ alignItems: "flex-start" }}>
 					{STAGES.map((stage) => (
-						<div key={stage} className="card" style={{ flex: 1, minWidth: 240 }}>
-							<div className="cardPad" style={{ borderBottom: "1px solid var(--border)" }}>
+						<Card key={stage} style={{ flex: 1, minWidth: 240 }}>
+							<CardHeader className="pb-3">
 								<div className="rowWrap" style={{ justifyContent: "space-between" }}>
-									<div style={{ fontWeight: 900 }}>{stage}</div>
-									<div className="badge">{byStage[stage]?.length ?? 0}</div>
+									<CardTitle>{stage}</CardTitle>
+									<Badge>{byStage[stage]?.length ?? 0}</Badge>
 								</div>
-							</div>
-							<div className="cardPad stack" style={{ gap: 10 }}>
+							</CardHeader>
+							<CardContent className="pt-3">
 								{(byStage[stage] ?? []).length ? (
-									byStage[stage].map((lead, idx) => (
-										<div key={lead.id} className="card" style={{ borderRadius: 12 }}>
-											<div className="cardPad" style={{ padding: 12 }}>
-												<div style={{ fontWeight: 850 }}>{lead.name}</div>
-												<div className="small subtle" style={{ marginTop: 4 }}>
-													{[lead.phone, lead.email].filter(Boolean).join(" • ") || "No contact"}
-												</div>
-												{lead.deal_value != null ? (
-													<div className="small" style={{ marginTop: 6 }}>
-														Deal: <span className="mono">{formatDeal(lead.deal_value)}</span>
-													</div>
-												) : null}
+									<div className="overflow-y-auto pr-1" style={{ maxHeight: stageWindowHeight }}>
+										<div className="stack" style={{ gap: 10 }}>
+											{byStage[stage].map((lead, idx) => (
+												<Card key={lead.id} className="rounded-xl">
+													<CardContent className="pt-5" style={{ paddingTop: 12, paddingBottom: 12 }}>
+														<div style={{ fontWeight: 850 }}>{lead.name}</div>
+														<div className="small subtle" style={{ marginTop: 4 }}>
+															{[lead.phone, lead.email].filter(Boolean).join(" • ") || "No contact"}
+														</div>
+														{lead.deal_value != null ? (
+															<div className="small" style={{ marginTop: 6 }}>
+																Deal: <span className="mono">{formatDeal(lead.deal_value)}</span>
+															</div>
+														) : null}
 
-												<div className="rowWrap" style={{ justifyContent: "space-between", marginTop: 10 }}>
-													<select
-														className="input"
-														value={STAGES.includes(lead.lead_stage) ? lead.lead_stage : "New"}
-														disabled={savingId === lead.id}
-														onChange={(e) => setStage(lead.id, e.target.value)}
-														style={{ maxWidth: 160 }}
-													>
-														{STAGES.map((s) => (
-															<option key={s} value={s}>
-																{s}
-															</option>
-														))}
-													</select>
-													<div className="badge mono" title={`ID: ${lead.id}`}>#{idx + 1}</div>
-												</div>
-											</div>
+														<div className="rowWrap" style={{ justifyContent: "space-between", marginTop: 10 }}>
+															<select
+																className="flex h-10 w-full max-w-[160px] rounded-md border border-input bg-white/90 px-3 py-2 text-sm shadow-soft ring-offset-background focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+																value={STAGES.includes(lead.lead_stage) ? lead.lead_stage : "New"}
+																disabled={savingId === lead.id}
+																onChange={(e) => setStage(lead.id, e.target.value)}
+															>
+																{STAGES.map((s) => (
+																	<option key={s} value={s}>
+																		{s}
+																	</option>
+																))}
+															</select>
+															<Badge className="mono" title={`ID: ${lead.id}`}>#{idx + 1}</Badge>
+														</div>
+													</CardContent>
+												</Card>
+											))}
 										</div>
-									))
+									</div>
 								) : (
 									<div className="small subtle">No leads in this stage.</div>
 								)}
-							</div>
-						</div>
+							</CardContent>
+						</Card>
 					))}
 				</div>
 			)}

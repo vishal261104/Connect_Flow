@@ -1,29 +1,29 @@
 import { query } from "../config/db.js";
 
-export const addNote = async ({ ownerUserId, customerId, body }) => {
+export const addNote = async ({ workspaceId, actorUserId, customerId, body }) => {
 	const result = await query(
 		`
-			INSERT INTO notes (customer_id, body)
-			SELECT c.id, $3
+			INSERT INTO notes (customer_id, workspace_id, actor_user_id, body)
+			SELECT c.id, $1, $2, $4
 			FROM customers c
-			WHERE c.owner_user_id = $1 AND c.id = $2
-			RETURNING id, customer_id, body, created_at;
+			WHERE c.workspace_id = $1 AND c.id = $3
+			RETURNING id, customer_id, workspace_id, actor_user_id, body, created_at;
 		`,
-		[ownerUserId, customerId, body]
+		[workspaceId, actorUserId, customerId, body]
 	);
 	return result.rows[0];
 };
 
-export const listNotesByCustomer = async (ownerUserId, customerId) => {
+export const listNotesByCustomer = async (workspaceId, customerId) => {
 	const result = await query(
 		`
-			SELECT n.id, n.customer_id, n.body, n.created_at
+			SELECT n.id, n.customer_id, n.body, n.created_at, n.actor_user_id
 			FROM notes n
 			JOIN customers c ON c.id = n.customer_id
-			WHERE c.owner_user_id = $1 AND n.customer_id = $2
+			WHERE c.workspace_id = $1 AND n.customer_id = $2
 			ORDER BY created_at DESC, id DESC;
 		`,
-		[ownerUserId, customerId]
+		[workspaceId, customerId]
 	);
 	return result.rows;
 };
@@ -40,35 +40,36 @@ export const deleteNote = async (noteId) => {
 	return (result.rowCount ?? 0) > 0;
 };
 
-export const deleteNoteForCustomer = async ({ ownerUserId, noteId, customerId }) => {
+export const deleteNoteForCustomer = async ({ workspaceId, noteId, customerId }) => {
 	const result = await query(
 		`
 			DELETE FROM notes n
 			USING customers c
 			WHERE n.customer_id = c.id
-			  AND c.owner_user_id = $1
+			  AND c.workspace_id = $1
 			  AND n.id = $2
 			  AND n.customer_id = $3
 			RETURNING id;
 		`,
-		[ownerUserId, noteId, customerId]
+		[workspaceId, noteId, customerId]
 	);
 	return (result.rowCount ?? 0) > 0;
 };
 
-export const updateNote = async ({ ownerUserId, noteId, customerId, body }) => {
+export const updateNote = async ({ workspaceId, actorUserId, noteId, customerId, body }) => {
 	const result = await query(
 		`
 			UPDATE notes n
-			SET body = $1
+			SET body = $1,
+				actor_user_id = COALESCE($5, actor_user_id)
 			FROM customers c
 			WHERE n.customer_id = c.id
-			  AND c.owner_user_id = $2
+			  AND c.workspace_id = $2
 			  AND n.id = $3
 			  AND n.customer_id = $4
-			RETURNING n.id, n.customer_id, n.body, n.created_at;
+			RETURNING n.id, n.customer_id, n.body, n.created_at, n.actor_user_id;
 		`,
-		[body, ownerUserId, noteId, customerId]
+		[body, workspaceId, noteId, customerId, actorUserId]
 	);
 	return result.rows[0] ?? null;
 };
