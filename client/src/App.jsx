@@ -10,6 +10,7 @@ import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Pipeline from "./pages/Pipeline.jsx";
 import Profile from "./pages/Profile.jsx";
+import Admin from "./pages/Admin.jsx";
 import NotificationsBell from "./components/NotificationsBell.jsx";
 
 import {
@@ -38,6 +39,15 @@ const RequireAuth = ({ children }) => {
   return children;
 };
 
+const RequireAdmin = ({ children }) => {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (String(user.role) !== "Admin") return <Navigate to="/dashboard" replace />;
+  return children;
+};
+
 const Topbar = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -46,6 +56,7 @@ const Topbar = () => {
   const isOnDashboard = location.pathname === "/dashboard";
   const isOnPipeline = location.pathname === "/pipeline";
     const isOnProfile = location.pathname === "/profile";
+  const isOnAdmin = location.pathname === "/admin";
 
   return (
     <header className="topbar">
@@ -88,6 +99,13 @@ const Topbar = () => {
         </Link>
       </Button>
       ) : null}
+      {role === "Admin" ? (
+        <Button asChild variant={isOnAdmin ? "default" : "outline"}>
+          <Link to="/admin">
+            <FiUsers aria-hidden="true" /> Admin
+          </Link>
+        </Button>
+      ) : null}
       <Button asChild variant={isOnProfile ? "default" : "outline"}>
       <Link to="/profile">
         <FiUser aria-hidden="true" /> Profile
@@ -125,6 +143,7 @@ export default function App() {
 			<Route path="/pipeline" element={<RequireAuth><Pipeline /></RequireAuth>} />
 			<Route path="/customers" element={<RequireAuth><Customers /></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+      <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
 			<Route path="/customers/new" element={<RequireAuth><AddCustomer /></RequireAuth>} />
 			<Route path="/customers/:id" element={<RequireAuth><CustomerProfile /></RequireAuth>} />
 			<Route path="/customers/:id/edit" element={<RequireAuth><EditCustomer /></RequireAuth>} />

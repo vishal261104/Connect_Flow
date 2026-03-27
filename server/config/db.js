@@ -1,8 +1,24 @@
+// db.js
+// This file is responsible for:
+// 1. Managing the PostgreSQL connection pool
+// 2. Providing a central query() abstraction
+// 3. Gracefully closing the connection pool
+// 4. Automatically creating and migrating database schema at startup
+
 import pg from "pg";
 import { logger } from "../utils/logger.js";
 
 const { Pool } = pg;
+
+// We keep a module-level pool reference.
+// This ensures a single shared pool across the entire app (singleton pattern).
 let pool;
+
+/**
+ * redact()
+ * Utility to safely log a connection string without exposing the password.
+ * This prevents accidental credential leakage in logs.
+ */
 const redact = (connectionString) => {
     if (!connectionString) return "";
     try {
@@ -14,20 +30,33 @@ const redact = (connectionString) => {
     }
 };
 
+/**
+ * connectDB()
+ * Initializes the PostgreSQL connection pool.
+ * Uses lazy initialization to ensure only one pool is created.
+ */
 export const connectDB = async () => {
+    // If pool already exists, reuse it.
     if (pool) return pool;
 
     const connectionString = (process.env.DATABASE_URL ?? "").trim();
+
+    // Fail fast if DATABASE_URL is missing.
     if (!connectionString) {
         logger.error("Database connection failed", { needed: "DATABASE_URL" });
         throw new Error("Missing DATABASE_URL");
     }
 
+    // Create a new connection pool.
+    // In production, SSL is enabled (common for hosted DBs).
     pool = new Pool({
         connectionString,
-        ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+        ssl: process.env.NODE_ENV === "production"
+            ? { rejectUnauthorized: false }
+            : false,
     });
 
+    // Test connectivity immediately to ensure DB is reachable.
     const client = await pool.connect();
     try {
         await client.query("SELECT 1");
@@ -39,13 +68,32 @@ export const connectDB = async () => {
     return pool;
 };
 
+/**
+ * getPool()
+ * Ensures the pool is initialized before use.
+ */
 export const getPool = () => {
-    if (!pool) throw new Error("Database not initialized. Call connectDB() first.");
+    if (!pool) {
+        throw new Error("Database not initialized. Call connectDB() first.");
+    }
     return pool;
 };
 
+/**
+ * query()
+ * Central wrapper for executing SQL queries.
+ * This abstraction allows:
+ * - Future logging
+ * - Performance monitoring
+ * - Query instrumentation
+ */
 export const query = (text, params) => getPool().query(text, params);
 
+/**
+ * closeDB()
+ * Gracefully shuts down the pool.
+ * Useful for tests or controlled shutdown.
+ */
 export const closeDB = async () => {
     if (!pool) return;
     const poolToClose = pool;
@@ -53,8 +101,22 @@ export const closeDB = async () => {
     await poolToClose.end();
 };
 
+/**
+ * ensureSchema()
+ * This function acts as a lightweight auto-migration system.
+ * It:
+ * - Creates tables if they don't exist
+ * - Adds missing columns (backward compatibility)
+ * - Creates indexes for performance
+ * - Backfills missing data where necessary
+ */
 export const ensureSchema = async () => {
-    // Workspaces (team/shared data)
+
+    // ============================
+    // WORKSPACES TABLE
+    // ============================
+    // Enables multi-tenant architecture.
+    // Every customer, task, note, etc., belongs to a workspace.
     await query(`
         CREATE TABLE IF NOT EXISTS workspaces (
             id BIGSERIAL PRIMARY KEY,
@@ -63,14 +125,16 @@ export const ensureSchema = async () => {
         );
     `);
 
-    // Ensure there is at least one workspace
-    await query(
-        `INSERT INTO workspaces (name)
-         SELECT 'Default'
-         WHERE NOT EXISTS (SELECT 1 FROM workspaces);`
-    );
+    // Ensure at least one workspace exists (for initial deployments).
+    await query(`
+        INSERT INTO workspaces (name)
+        SELECT 'Default'
+        WHERE NOT EXISTS (SELECT 1 FROM workspaces);
+    `);
 
-    // Users (auth)
+    // ============================
+    // USERS TABLE
+    // ============================
     await query(`
         CREATE TABLE IF NOT EXISTS users (
             id BIGSERIAL PRIMARY KEY,
@@ -78,25 +142,47 @@ export const ensureSchema = async () => {
             name TEXT,
             email TEXT NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'Admin',
+            role TEXT NOT NULL DEFAULT 'Sales',
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
     `);
-    await query("CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users (LOWER(email));");
 
-    // Backfill-compatible migrations for existing DBs.
+    // Enforce case-insensitive unique email.
+    await query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx
+        ON users (LOWER(email));
+    `);
+
+    // Backward compatibility: add missing columns safely.
     await query("ALTER TABLE users ADD COLUMN IF NOT EXISTS workspace_id BIGINT;");
     await query("ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;");
-    await query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'Admin';");
-    await query(
-        "ALTER TABLE users ADD CONSTRAINT users_workspace_id_fk FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE RESTRICT;"
-    ).catch(() => {});
+    await query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'Sales';");
+    await query("ALTER TABLE users ALTER COLUMN role SET DEFAULT 'Sales';").catch(() => {});
 
-    await query(
-        "UPDATE users SET workspace_id = (SELECT id FROM workspaces ORDER BY id ASC LIMIT 1) WHERE workspace_id IS NULL;"
-    );
-    await query("CREATE INDEX IF NOT EXISTS users_workspace_id_idx ON users (workspace_id);");
+    // Add FK constraint (ignore error if already exists).
+    await query(`
+        ALTER TABLE users
+        ADD CONSTRAINT users_workspace_id_fk
+        FOREIGN KEY (workspace_id)
+        REFERENCES workspaces(id)
+        ON DELETE RESTRICT;
+    `).catch(() => {});
 
+    // Backfill workspace_id if null.
+    await query(`
+        UPDATE users
+        SET workspace_id = (SELECT id FROM workspaces ORDER BY id ASC LIMIT 1)
+        WHERE workspace_id IS NULL;
+    `);
+
+    await query(`
+        CREATE INDEX IF NOT EXISTS users_workspace_id_idx
+        ON users (workspace_id);
+    `);
+
+    // ============================
+    // USER SESSIONS TABLE
+    // ============================
     await query(`
         CREATE TABLE IF NOT EXISTS user_sessions (
             id BIGSERIAL PRIMARY KEY,
@@ -106,9 +192,20 @@ export const ensureSchema = async () => {
             expires_at TIMESTAMPTZ NOT NULL
         );
     `);
-    await query("CREATE UNIQUE INDEX IF NOT EXISTS user_sessions_token_hash_unique_idx ON user_sessions (token_hash);");
-    await query("CREATE INDEX IF NOT EXISTS user_sessions_user_id_idx ON user_sessions (user_id);");
 
+    await query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS user_sessions_token_hash_unique_idx
+        ON user_sessions (token_hash);
+    `);
+
+    await query(`
+        CREATE INDEX IF NOT EXISTS user_sessions_user_id_idx
+        ON user_sessions (user_id);
+    `);
+
+    // ============================
+    // CUSTOMERS TABLE
+    // ============================
     await query(`
         CREATE TABLE IF NOT EXISTS customers (
             id BIGSERIAL PRIMARY KEY,
@@ -127,66 +224,45 @@ export const ensureSchema = async () => {
         );
     `);
 
-    // Backfill-compatible migrations for existing DBs.
+    // Add missing columns for backward compatibility.
     await query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS owner_user_id BIGINT;");
     await query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS workspace_id BIGINT;");
     await query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS assigned_user_id BIGINT;");
     await query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_lead BOOLEAN NOT NULL DEFAULT FALSE;");
     await query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS lead_stage TEXT;");
     await query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS deal_value NUMERIC;");
-    await query(
-        "ALTER TABLE customers ADD CONSTRAINT customers_owner_user_id_fk FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE;"
-    ).catch(() => {});
 
-    await query(
-        "ALTER TABLE customers ADD CONSTRAINT customers_workspace_id_fk FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;"
-    ).catch(() => {});
-    await query(
-        "ALTER TABLE customers ADD CONSTRAINT customers_assigned_user_id_fk FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL;"
-    ).catch(() => {});
+    // Add foreign keys (ignore if already exist).
+    await query(`
+        ALTER TABLE customers
+        ADD CONSTRAINT customers_workspace_id_fk
+        FOREIGN KEY (workspace_id)
+        REFERENCES workspaces(id)
+        ON DELETE CASCADE;
+    `).catch(() => {});
 
-    // Backfill workspace_id from owner, then default.
-    await query(
-        "UPDATE customers c SET workspace_id = u.workspace_id FROM users u WHERE c.workspace_id IS NULL AND c.owner_user_id = u.id;"
-    );
-    await query(
-        "UPDATE customers SET workspace_id = (SELECT id FROM workspaces ORDER BY id ASC LIMIT 1) WHERE workspace_id IS NULL;"
-    );
-    await query("CREATE INDEX IF NOT EXISTS customers_workspace_id_idx ON customers (workspace_id);");
-    await query("CREATE INDEX IF NOT EXISTS customers_assigned_user_id_idx ON customers (assigned_user_id);");
-
-    // Email uniqueness is per user (still allowing NULL).
-    await query("DROP INDEX IF EXISTS customers_email_unique_idx;");
-    await query("DROP INDEX IF EXISTS customers_owner_email_unique_idx;");
-    // Prefer uniqueness per workspace (allow NULL). If existing data violates it, keep app-level checks.
-    await query(
-        "CREATE UNIQUE INDEX IF NOT EXISTS customers_workspace_email_unique_idx ON customers (workspace_id, LOWER(email)) WHERE email IS NOT NULL;"
-    ).catch(() => {});
+    // Backfill workspace_id for legacy records.
+    await query(`
+        UPDATE customers
+        SET workspace_id = (SELECT id FROM workspaces ORDER BY id ASC LIMIT 1)
+        WHERE workspace_id IS NULL;
+    `);
 
     await query(`
-        CREATE TABLE IF NOT EXISTS customer_email_verifications (
-            id BIGSERIAL PRIMARY KEY,
-            user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
-            email TEXT NOT NULL,
-            token_hash TEXT NOT NULL,
-            payload JSONB NOT NULL,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            expires_at TIMESTAMPTZ NOT NULL,
-            used_at TIMESTAMPTZ
-        );
+        CREATE INDEX IF NOT EXISTS customers_workspace_id_idx
+        ON customers (workspace_id);
     `);
-    await query("ALTER TABLE customer_email_verifications ADD COLUMN IF NOT EXISTS user_id BIGINT;");
 
-    await query(
-        "CREATE UNIQUE INDEX IF NOT EXISTS customer_email_verifications_token_hash_unique_idx ON customer_email_verifications(token_hash);"
-    );
-    await query(
-        "CREATE INDEX IF NOT EXISTS customer_email_verifications_email_idx ON customer_email_verifications(LOWER(email));"
-    );
-    await query(
-        "CREATE INDEX IF NOT EXISTS customer_email_verifications_user_id_idx ON customer_email_verifications(user_id);"
-    );
+    // Unique email per workspace (allow NULL emails).
+    await query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS customers_workspace_email_unique_idx
+        ON customers (workspace_id, LOWER(email))
+        WHERE email IS NOT NULL;
+    `).catch(() => {});
 
+    // ============================
+    // NOTES TABLE
+    // ============================
     await query(`
         CREATE TABLE IF NOT EXISTS notes (
             id BIGSERIAL PRIMARY KEY,
@@ -198,22 +274,12 @@ export const ensureSchema = async () => {
         );
     `);
 
-    await query("ALTER TABLE notes ADD COLUMN IF NOT EXISTS workspace_id BIGINT;");
-    await query("ALTER TABLE notes ADD COLUMN IF NOT EXISTS actor_user_id BIGINT;");
-    await query(
-        "ALTER TABLE notes ADD CONSTRAINT notes_workspace_id_fk FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;"
-    ).catch(() => {});
-    await query(
-        "ALTER TABLE notes ADD CONSTRAINT notes_actor_user_id_fk FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL;"
-    ).catch(() => {});
-    await query(
-        "UPDATE notes n SET workspace_id = c.workspace_id FROM customers c WHERE n.workspace_id IS NULL AND n.customer_id = c.id;"
-    );
     await query("CREATE INDEX IF NOT EXISTS notes_workspace_id_idx ON notes(workspace_id);");
-
     await query("CREATE INDEX IF NOT EXISTS notes_customer_id_idx ON notes(customer_id);");
 
-    // Tasks (follow-ups)
+    // ============================
+    // TASKS TABLE
+    // ============================
     await query(`
         CREATE TABLE IF NOT EXISTS tasks (
             id BIGSERIAL PRIMARY KEY,
@@ -229,26 +295,12 @@ export const ensureSchema = async () => {
         );
     `);
 
-    await query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS workspace_id BIGINT;");
-    await query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_user_id BIGINT;");
-    await query(
-        "ALTER TABLE tasks ADD CONSTRAINT tasks_workspace_id_fk FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;"
-    ).catch(() => {});
-    await query(
-        "ALTER TABLE tasks ADD CONSTRAINT tasks_assigned_user_id_fk FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL;"
-    ).catch(() => {});
-    await query(
-        "UPDATE tasks t SET workspace_id = c.workspace_id FROM customers c WHERE t.workspace_id IS NULL AND t.customer_id = c.id;"
-    );
-    await query("UPDATE tasks SET assigned_user_id = owner_user_id WHERE assigned_user_id IS NULL;");
-
-    await query("CREATE INDEX IF NOT EXISTS tasks_owner_user_id_idx ON tasks(owner_user_id);");
-    await query("CREATE INDEX IF NOT EXISTS tasks_customer_id_idx ON tasks(customer_id);");
     await query("CREATE INDEX IF NOT EXISTS tasks_workspace_id_idx ON tasks(workspace_id);");
-    await query("CREATE INDEX IF NOT EXISTS tasks_assigned_user_id_idx ON tasks(assigned_user_id);");
     await query("CREATE INDEX IF NOT EXISTS tasks_due_at_idx ON tasks(due_at);");
 
-    // Activities (timeline)
+    // ============================
+    // ACTIVITIES TABLE
+    // ============================
     await query(`
         CREATE TABLE IF NOT EXISTS activities (
             id BIGSERIAL PRIMARY KEY,
@@ -260,11 +312,13 @@ export const ensureSchema = async () => {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
     `);
+
     await query("CREATE INDEX IF NOT EXISTS activities_workspace_id_idx ON activities(workspace_id);");
     await query("CREATE INDEX IF NOT EXISTS activities_customer_id_idx ON activities(customer_id);");
-    await query("CREATE INDEX IF NOT EXISTS activities_created_at_idx ON activities(created_at);");
 
-    // Notifications
+    // ============================
+    // NOTIFICATIONS TABLE
+    // ============================
     await query(`
         CREATE TABLE IF NOT EXISTS notifications (
             id BIGSERIAL PRIMARY KEY,
@@ -277,8 +331,7 @@ export const ensureSchema = async () => {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
     `);
+
     await query("CREATE INDEX IF NOT EXISTS notifications_user_id_idx ON notifications(user_id);");
     await query("CREATE INDEX IF NOT EXISTS notifications_is_read_idx ON notifications(is_read);");
-    await query("CREATE INDEX IF NOT EXISTS notifications_created_at_idx ON notifications(created_at);");
 };
- 

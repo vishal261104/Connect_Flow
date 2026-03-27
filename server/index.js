@@ -14,6 +14,7 @@ import tasksRouter from "./routes/tasks.js";
 import activitiesRouter from "./routes/activities.js";
 import notificationsRouter from "./routes/notifications.js";
 import usersRouter from "./routes/users.js";
+import workspacesRouter from "./routes/workspaces.js";
 import { requireAuth } from "./middleware/auth.js";
 import { attachSocketIO } from "./realtime/socket.js";
 
@@ -33,6 +34,7 @@ app.use("/api/leads", requireAuth, leadsRouter);
 app.use("/api/dashboard", requireAuth, dashboardRouter);
 app.use("/api/notifications", requireAuth, notificationsRouter);
 app.use("/api/users", requireAuth, usersRouter);
+app.use("/api/workspaces", requireAuth, workspacesRouter);
 
 // Basic error handler
 app.use((err, req, res, next) => {

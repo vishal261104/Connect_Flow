@@ -3,11 +3,23 @@ import { query } from "../config/db.js";
 export const createUser = async ({ email, passwordHash, name = null }) => {
 	const result = await query(
 		`
-			INSERT INTO users (workspace_id, name, email, password_hash)
-			VALUES ((SELECT id FROM workspaces ORDER BY id ASC LIMIT 1), $1, $2, $3)
+			INSERT INTO users (workspace_id, name, email, password_hash, role)
+			VALUES ((SELECT id FROM workspaces ORDER BY id ASC LIMIT 1), $1, $2, $3, 'Sales')
 			RETURNING id, name, email, created_at;
 		`,
 		[name, email, passwordHash]
+	);
+	return result.rows[0];
+};
+
+export const createUserInWorkspace = async ({ workspaceId, email, passwordHash, name = null, role }) => {
+	const result = await query(
+		`
+			INSERT INTO users (workspace_id, name, email, password_hash, role)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING id, workspace_id, name, email, role, created_at;
+		`,
+		[workspaceId, name, email, passwordHash, role]
 	);
 	return result.rows[0];
 };

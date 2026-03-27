@@ -153,5 +153,13 @@ export const usersApi = {
 	list: async () => request("/users"),
 };
 
+export const workspacesApi = {
+	list: async () => request("/workspaces"),
+	create: async (payload) => request("/workspaces", { method: "POST", body: payload }),
+	listUsers: async (workspaceId) => request(`/workspaces/${workspaceId}/users`),
+	createUser: async (workspaceId, payload) =>
+		request(`/workspaces/${workspaceId}/users`, { method: "POST", body: payload }),
+};
+
 export const isApiError = (err) => err && typeof err === "object" && err.name === "ApiError";
 
