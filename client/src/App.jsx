@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, Link, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, Link, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext.jsx";
 
@@ -25,6 +25,7 @@ import {
 
 import { Button } from "./components/ui/button.jsx";
 import { Card, CardContent } from "./components/ui/card.jsx";
+import { Tabs, TabsList, TabsTab } from "./components/ui/tabs.jsx";
 
 const RequireAuth = ({ children }) => {
   const { user, loading } = useAuth();
@@ -50,18 +51,22 @@ const RequireAdmin = ({ children }) => {
 
 const Topbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const role = String(user?.role ?? "");
-  const isOnCustomers = location.pathname === "/customers";
-  const isOnDashboard = location.pathname === "/dashboard";
-  const isOnPipeline = location.pathname === "/pipeline";
-    const isOnProfile = location.pathname === "/profile";
-  const isOnAdmin = location.pathname === "/admin";
+
+  const handleTabChange = (val) => {
+    if (val === "logout") {
+      logout();
+    } else {
+      navigate(val);
+    }
+  };
 
   return (
     <header className="topbar">
-      <div className="container topbarInner">
-        <div className="row" style={{ gap: 12 }}>
+      <div className="container topbarInner" style={{ background: "transparent", border: "none", boxShadow: "none" }}>
+        <div className="row" style={{ gap: 12, flexShrink: 0 }}>
           <img
             src="/favicon.png"
             alt="CONNECTFLOW"
@@ -76,46 +81,38 @@ const Topbar = () => {
 
         <nav className="navLinks">
       {user ? (
-        <>
-          <Button asChild variant={isOnDashboard ? "default" : "outline"}>
-            <Link to="/dashboard">
-			  <FiHome aria-hidden="true" /> Dashboard
-            </Link>
-          </Button>
-          <Button asChild variant={isOnCustomers ? "default" : "outline"}>
-            <Link to="/customers">
-			  <FiUsers aria-hidden="true" /> Customers
-            </Link>
-          </Button>
-          <Button asChild variant={isOnPipeline ? "default" : "outline"}>
-            <Link to="/pipeline">
-			  <FiColumns aria-hidden="true" /> Pipeline
-            </Link>
-          </Button>
-      {role !== "Viewer" ? (
-      <Button asChild variant="outline">
-        <Link to="/customers/new">
-          <FiPlus aria-hidden="true" /> Add customer
-        </Link>
-      </Button>
-      ) : null}
-      {role === "Admin" ? (
-        <Button asChild variant={isOnAdmin ? "default" : "outline"}>
-          <Link to="/admin">
-            <FiUsers aria-hidden="true" /> Admin
-          </Link>
-        </Button>
-      ) : null}
-      <Button asChild variant={isOnProfile ? "default" : "outline"}>
-      <Link to="/profile">
-        <FiUser aria-hidden="true" /> Profile
-      </Link>
-      </Button>
-		  <NotificationsBell />
-          <Button variant="outline" type="button" onClick={logout}>
-			<FiLogOut aria-hidden="true" /> Logout
-          </Button>
-        </>
+        <div className="flex items-center gap-4">
+            <Tabs value={location.pathname} onValueChange={handleTabChange}>
+              <TabsList>
+                <TabsTab value="/dashboard">
+                  <FiHome aria-hidden="true" /> Dashboard
+                </TabsTab>
+                <TabsTab value="/customers">
+                  <FiUsers aria-hidden="true" /> Customers
+                </TabsTab>
+                <TabsTab value="/pipeline">
+                  <FiColumns aria-hidden="true" /> Pipeline
+                </TabsTab>
+                {role !== "Viewer" && (
+                  <TabsTab value="/customers/new">
+                    <FiPlus aria-hidden="true" /> Add customer
+                  </TabsTab>
+                )}
+                {role === "Admin" && (
+                  <TabsTab value="/admin">
+                    <FiUsers aria-hidden="true" /> Admin
+                  </TabsTab>
+                )}
+                <TabsTab value="/profile">
+                  <FiUser aria-hidden="true" /> Profile
+                </TabsTab>
+                <TabsTab value="logout">
+                  <FiLogOut aria-hidden="true" /> Logout
+                </TabsTab>
+              </TabsList>
+            </Tabs>
+            <NotificationsBell />
+        </div>
       ) : (
         <Button asChild variant="default">
           <Link to="/login">

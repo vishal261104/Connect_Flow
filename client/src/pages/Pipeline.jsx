@@ -4,6 +4,7 @@ import { leadsApi } from "../services/api.js";
 import { Alert } from "../components/ui/alert.jsx";
 import { Badge } from "../components/ui/badge.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card.jsx";
+import TimelineRail from "../components/ui/timeline-rail.jsx";
 
 const STAGES = ["New", "Contacted", "Interested", "Closed"];
 
@@ -75,11 +76,26 @@ export default function Pipeline() {
 			<div className="pageHeader">
 				<div>
 					<h1 className="h1">Sales pipeline</h1>
-					<p className="subtle">New → Contacted → Interested → Closed</p>
 				</div>
 				<div className="rowWrap">
 					<Badge>{leads.length} leads</Badge>
 				</div>
+			</div>
+
+			<div className="w-full mb-2" style={{ paddingLeft: 10, paddingRight: 10 }}>
+				<TimelineRail
+					className="w-full"
+					items={[
+						{ caption: 'New', active: true },
+						{ caption: 'Contacted', active: true },
+						{ caption: 'Interested', active: true },
+						{ caption: 'Closed', active: false },
+					]}
+					size="md"
+					labelAngle={0}
+					gapClassName=""
+					emphasizeActiveTrail
+				/>
 			</div>
 
 			{error ? <Alert>{error}</Alert> : null}

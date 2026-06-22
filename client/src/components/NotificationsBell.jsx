@@ -190,7 +190,7 @@ export default function NotificationsBell() {
 
 			{open ? (
 				<div style={{ position: "absolute", right: 0, top: 46, width: 360, zIndex: 30 }}>
-					<Card>
+					<Card className="bg-white backdrop-blur-none shadow-xl border-slate-200">
 						<CardHeader className="pb-2">
 							<div className="rowWrap" style={{ justifyContent: "space-between" }}>
 								<div>

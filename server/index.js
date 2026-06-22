@@ -2,6 +2,8 @@ import "dotenv/config";
 import http from "node:http";
 import express from "express";
 import cors from "cors";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { connectDB, ensureSchema } from "./config/db.js";
 import { logger } from "./utils/logger.js";
@@ -35,6 +37,15 @@ app.use("/api/dashboard", requireAuth, dashboardRouter);
 app.use("/api/notifications", requireAuth, notificationsRouter);
 app.use("/api/users", requireAuth, usersRouter);
 app.use("/api/workspaces", requireAuth, workspacesRouter);
+
+if (process.env.NODE_ENV === "production") {
+	const __filename = fileURLToPath(import.meta.url);
+	const __dirname = path.dirname(__filename);
+	app.use(express.static(path.join(__dirname, "../client/dist")));
+	app.get("*", (req, res) => {
+		res.sendFile(path.join(__dirname, "../client/dist/index.html"));
+	});
+}
 
 // Basic error handler
 app.use((err, req, res, next) => {
